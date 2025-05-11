@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Numerologia – Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Numerologia</h1>
+
+    <div class="form-numerologia">
+      <label for="nome-usuario">Seu Nome Completo:</label>
+      <input type="text" id="nome-usuario" placeholder="Nome Sobrenome"/>
+
+      <label for="data-nascimento-usuario">Sua Data de Nascimento:</label>
+      <input type="date" id="data-nascimento-usuario"/>
+
+      <div id="campos-familia"></div>
+      <button id="btn-add-familia" type="button">Adicionar Familiar</button>
+    </div>
+
+    <div class="actions">
+      <button id="btn-gerar" disabled>Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta-numerologia"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+  </div>
+
+  <script>
+    // Referências aos elementos
+    const nomeInput    = document.getElementById('nome-usuario');
+    const dataInput    = document.getElementById('data-nascimento-usuario');
+    const divFamilia   = document.getElementById('campos-familia');
+    const btnAddFam    = document.getElementById('btn-add-familia');
+    const btnGerar     = document.getElementById('btn-gerar');
+    const btnNova      = document.getElementById('btn-nova');
+    const resDiv       = document.getElementById('resultado-aposta-numerologia');
+
+    let contadorFam = 0;
+    let ultimaChave = null;
+
+    // Exibe modalidade no topo e define estado inicial
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+      // só habilita Gerar se tiver pelo menos nome ou data
+      atualizarBotaoGerar();
+    });
+
+    // Função para habilitar/desabilitar Gerar
+    function atualizarBotaoGerar() {
+      const hasBase = nomeInput.value.trim() || dataInput.value;
+      const hasFam  = Array.from(divFamilia.querySelectorAll('input')).some(i => i.value);
+      btnGerar.disabled = !(hasBase || hasFam);
+    }
+
+    [nomeInput, dataInput].forEach(el =>
+      el.addEventListener('input', atualizarBotaoGerar)
+    );
+
+    // Adiciona campos de familiar
+    btnAddFam.addEventListener('click', () => {
+      contadorFam++;
+      const div = document.createElement('div');
+      div.className = 'campo-adicional';
+      div.innerHTML = `
+        <label for="nome-fam-${contadorFam}">Nome do Familiar:</label>
+        <input type="text" id="nome-fam-${contadorFam}" placeholder="Nome do Familiar"/>
+        <label for="data-fam-${contadorFam}">Data de Nascimento:</label>
+        <input type="date" id="data-fam-${contadorFam}"/>
+      `;
+      divFamilia.appendChild(div);
+      // monitora inputs recém-criados
+      div.querySelectorAll('input').forEach(inp =>
+        inp.addEventListener('input', atualizarBotaoGerar)
+      );
+    });
+
+    // Converte letra em número A=1 ... Z=26
+    function letraParaNumero(l) {
+      const code = l.toLowerCase().charCodeAt(0) - 96;
+      return code >= 1 && code <= 26 ? code : 0;
+    }
+
+    // Geração de aposta
+    btnGerar.addEventListener('click', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      // constrói chave de idempotência
+      const valores = [
+        nomeInput.value.trim(),
+        dataInput.value,
+        ...Array.from(divFamilia.querySelectorAll('input')).map(i => i.value)
+      ];
+      const chave = `${mod}|${valores.join('|')}`;
+      if (ultimaChave === chave) return;
+      ultimaChave = chave;
+
+      // define target e faixa conforme modalidade
+      let target = 10, min = 1, max = 60;
+      switch (mod) {
+        case 'megasena':   target = 6;  max = 60;  break;
+        case 'quina':      target = 5;  max = 80;  break;
+        case 'lotofacil':  target = 15; max = 25;  break;
+        case 'lotomania':  target = 20; max = 100; break;
+        case 'duplasena':  target = 12; max = 50;  break;
+        case 'federal':    target = 6;  max = 60;  break;
+        case 'timemania':  target = 7;  max = 80;  break;
+        case 'diadesorte': target = 7;  max = 31;  break;
+        case 'supersete':  target = 7;  min = 0;    max = 9;  break;
+      }
+
+      // coleta números via numerologia
+      const nums = [];
+
+      // usuário
+      const nomeStr = nomeInput.value.replace(/\s+/g, '').toLowerCase();
+      let somaNome = 0;
+      for (let c of nomeStr) somaNome += letraParaNumero(c);
+      nums.push(somaNome % 9 === 0 ? 9 : somaNome % 9);
+
+      // data do usuário
+      if (dataInput.value) {
+        const [y,m,d] = dataInput.value.split('-');
+        const digits = d + m + y.slice(-2);
+        const somaData = [...digits].reduce((a,c)=>a+parseInt(c),0);
+        nums.push(somaData % 9 === 0 ? 9 : somaData % 9);
+      }
+
+      // familiares
+      for (let i = 1; i <= contadorFam; i++) {
+        const df = document.getElementById(`data-fam-${i}`).value;
+        if (df) {
+          const [y,m,d] = df.split('-');
+          const digits = d + m + y.slice(-2);
+          const soma = [...digits].reduce((a,c)=>a+parseInt(c),0);
+          nums.push(soma % 9 === 0 ? 9 : soma % 9);
+        }
+      }
+
+      // torna único, embaralha e preenche
+      let uniq = [...new Set(nums.filter(n => n >= min && n <= max))];
+      uniq.sort(() => Math.random() - 0.5);
+      const pool = Array.from({length: max-min+1}, (_,i)=>i+min);
+      while (uniq.length < target) {
+        const r = pool[Math.floor(Math.random()*pool.length)];
+        if (!uniq.includes(r)) uniq.push(r);
+      }
+
+      const resultado = uniq.slice(0, target).sort((a,b)=>a-b);
+      resDiv.textContent = `Seus números para ${mod.toUpperCase()}: ${resultado.join(', ')}`;
+      btnGerar.disabled = true;
+    });
+
+    // Nova aposta
+    btnNova.addEventListener('click', () => {
+      nomeInput.value = '';
+      dataInput.value = '';
+      divFamilia.innerHTML = '';
+      contadorFam = 0;
+      ultimaChave = null;
+      resDiv.innerHTML = '';
+      btnGerar.disabled = true;
+    });
+  </script>
+</body>
+</html>

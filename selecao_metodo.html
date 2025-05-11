@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="widtindexce-width, initial-scale=1.0" />
+    <title>Escolha o Método - Gera Sorte</title>
+    <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+    <div class="container">
+        <h1>Gera Sorte!</h1>
+        
+
+        <div class="modalidade-info"></div>
+
+        <h2>Escolha o Método de Geração:</h2>
+        <div class="secoes">
+            <a href="sonhos.html" data-metodo="Interpretação de Sonhos">Interpretação de Sonhos</a>
+            <a href="datas.html" data-metodo="Datas Específicas">Datas Específicas</a>
+            <a href="acontecimentos.html" data-metodo="Acontecimento do Dia">Acontecimento do Dia</a>
+            <a href="lua.html" data-metodo="Lua">Fases da Lua</a>
+            <a href="astrologia.html" data-metodo="Astrologia">Astrologia</a>
+            <a href="numerologia.html" data-metodo="Numerologia">Numerologia</a>
+            <a href="aleatorio.html" data-metodo="aleatorio">Geração Aleatória</a>
+        </div>
+        <a href="index.html" class="link-voltar">← Voltar para a página inicial</a>
+    </div>
+
+    <script>
+        const modalidadeInfoDiv = document.querySelector('.modalidade-info');
+        const links = document.querySelectorAll('.secoes a');
+        let modalidade;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            modalidade = localStorage.getItem('modalidadeSelecionada');
+            if (!modalidade) {
+                window.location.href = 'index.html';
+                return;
+            }
+            modalidadeInfoDiv.textContent = `Números para: ${modalidade.toUpperCase()}`;
+
+            links.forEach(link => {
+                link.addEventListener('click', () => {
+                    const metodo = link.getAttribute('data-metodo');
+                    localStorage.setItem('metodoSelecionado', metodo);
+                    localStorage.setItem('modalidadeSelecionada', modalidade);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Gera Sorte</title>
+    <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>Gera Sorte!</h1>
+        <p class="descricao-principal">
+            Bem-vindo ao Gera Sorte! Gere números da sorte de forma divertida usando sonhos, datas, astrologia e mais.
+        </p>
+        <div class="modalidades">
+            <a href="selecao_metodo.html?modalidade=federal" data-modalidade="federal">Loteria Federal</a>
+            <a href="selecao_metodo.html?modalidade=megasena" data-modalidade="megasena">Mega Sena</a>
+            <a href="selecao_metodo.html?modalidade=lotofacil" data-modalidade="lotofacil">Lotofácil</a>
+            <a href="selecao_metodo.html?modalidade=quina" data-modalidade="quina">Quina</a>
+            <a href="selecao_metodo.html?modalidade=duplasena" data-modalidade="duplasena">Dupla Sena</a>
+            <a href="selecao_metodo.html?modalidade=timemania" data-modalidade="timemania">Timemania</a>
+            <a href="selecao_metodo.html?modalidade=diadesorte" data-modalidade="diadesorte">Dia de Sorte</a>
+        </div>
+        <p id="aviso-legal">
+            Este site é apenas para fins de entretenimento. Não garantimos ganhos com os números gerados.
+        </p>
+    </div>
+
+    <script>
+        const links = document.querySelectorAll('.modalidades a');
+        links.forEach(link => {
+            link.addEventListener('click', function (event) {
+                const modalidade = this.getAttribute('data-modalidade');
+                localStorage.setItem('modalidadeSelecionada', modalidade);
+            });
+        });
+    </script>
+</body>
+</html>

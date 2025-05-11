@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Geração Aleatória – Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Geração Aleatória</h1>
+
+    <p>Geraremos números aleatórios com base na data de hoje para a modalidade selecionada.</p>
+
+    <div class="actions">
+      <button id="btn-gerar">Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta-aleatoria"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+  </div>
+
+  <script>
+    const btnGerar = document.getElementById('btn-gerar');
+    const btnNova  = document.getElementById('btn-nova');
+    const resDiv   = document.getElementById('resultado-aposta-aleatoria');
+    let ultimaChave = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+      btnGerar.disabled = false;
+    });
+
+    function gerarAleatorio(count, min, max) {
+      const hoje = new Date();
+      const dia  = hoje.getDate();
+      const mes  = hoje.getMonth() + 1;
+      const ano  = hoje.getFullYear();
+      const base = [dia, mes, ano % 100, Math.floor(ano / 100)];
+      const set  = new Set();
+
+      while (set.size < count) {
+        let num;
+        if (Math.random() < 0.7) {
+          const a = base[Math.floor(Math.random() * base.length)];
+          const b = base[Math.floor(Math.random() * base.length)];
+          num = a + b;
+        } else {
+          num = Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+        if (num >= min && num <= max) {
+          set.add(num);
+        }
+      }
+      return Array.from(set).sort((a, b) => a - b);
+    }
+
+    btnGerar.addEventListener('click', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      // chave de idempotência: modalidade + dia atual
+      const chave = `${mod}|${new Date().toDateString()}`;
+      if (ultimaChave === chave) return;
+      ultimaChave = chave;
+
+      let count = 6, min = 1, max = 60;
+      switch (mod) {
+        case 'megasena':   count = 6;  max = 60;  break;
+        case 'quina':      count = 5;  max = 80;  break;
+        case 'lotofacil':  count = 15; max = 25;  break;
+        case 'lotomania':  count = 20; max = 100; break;
+        case 'duplasena':  count = 12; max = 50;  break;
+        case 'federal':    count = 6;  max = 60;  break;
+        case 'timemania':  count = 7;  max = 80;  break;
+        case 'diadesorte': count = 7;  max = 31;  break;
+        case 'supersete':  count = 7;  min = 0;  max = 9;  break;
+      }
+
+      const nums = gerarAleatorio(count, min, max);
+      resDiv.textContent = `Seus números para ${mod.toUpperCase()} (${count}): ${nums.join(', ')}`;
+      btnGerar.disabled = true;
+    });
+
+    btnNova.addEventListener('click', () => {
+      resDiv.textContent = '';
+      ultimaChave = null;
+      btnGerar.disabled = false;
+    });
+  </script>
+</body>
+</html>

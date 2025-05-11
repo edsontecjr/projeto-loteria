@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interpretação de Sonhos - Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Interpretação de Sonhos</h1>
+
+    <p>Descreva o seu sonho abaixo:</p>
+    <textarea id="descricao-sonho" placeholder="Eu sonhei com um passarinho verde voando perto da janela..."></textarea>
+
+    <p>Ou selecione símbolos comuns do seu sonho:</p>
+    <div class="simbolos-comuns"></div>
+
+    <p>Elementos do sonho selecionados:</p>
+    <div id="elementos-selecionados">Nenhum elemento selecionado.</div>
+
+    <div class="actions">
+      <button id="btn-gerar">Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para a seleção de métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar para a página inicial</a>
+
+  </div>
+
+  <script>
+    // 1. Palavras-chave e mapeamento
+    const palavrasChave = [
+      'vermelho','azul','verde','amarelo','roxo','preto','rosa','branco',
+      'gato','cachorro','leão','tigre','pássaro','zebra','elefante','cobra','macaco',
+      'chuva','sol','vento','neve','neblina',
+      'mãe','pai','irmã','irmão','amigo','sobrinho(a)','tio(a)','cunhado(a)','sogro(a)','filho(a)',
+      'amor','medo','alegria','tristeza','raiva',
+      'árvore','rio','montanha','pedra','mar','onda','penhasco','moita','planta','raiz',
+      'carro','casa','livro','relógio','telefone','maçaneta','fechadura','chave','bicicleta','moto','caminhão',
+      'flor','estrela','lua','fogo','água','sol','céu',
+      'grama','criança','cadeira','mesa','nuvem','tv','quadro','sofá','ventilador','computador','faca','colher','garfo','prato','geladeira','fogão','janela','porta','telhado','parede','piso'
+    ];
+    const mapaDezenas = {};
+    (function initMap() {
+      const disponiveis = Array.from({length:60}, (_,i)=>i+1)
+                              .sort(() => Math.random() - 0.5);
+      palavrasChave.forEach((p,i)=> mapaDezenas[p]=disponiveis[i]);
+    })();
+
+    // 2. Monta UI de símbolos
+    const simbolosDiv = document.querySelector('.simbolos-comuns');
+    const elementosSelDiv = document.getElementById('elementos-selecionados');
+    const resultadoDiv = document.getElementById('resultado-aposta');
+    const txtSonho = document.getElementById('descricao-sonho');
+    const btnGerar = document.getElementById('btn-gerar');
+    const btnNova  = document.getElementById('btn-nova');
+    let simbolosSel = [];
+
+    palavrasChave.forEach(palavra => {
+      const el = document.createElement('div');
+      el.className = 'simbolo';
+      el.textContent = palavra;
+      el.addEventListener('click', () => {
+        if (el.classList.toggle('selecionado')) {
+          simbolosSel.push(palavra);
+        } else {
+          simbolosSel = simbolosSel.filter(x=>x!==palavra);
+        }
+        elementosSelDiv.textContent = simbolosSel.length 
+          ? simbolosSel.join(', ') 
+          : 'Nenhum elemento selecionado.';
+      });
+      simbolosDiv.appendChild(el);
+    });
+
+    // 3. Ajusta qualquer lista para count dezenas em [min,max]
+    function ajustarDezenas(arr, count, min, max) {
+      const filt = arr.filter(n=>n>=min&&n<=max);
+      let uniq = [...new Set(filt)].sort(()=>Math.random()-0.5);
+      const pool = Array.from({length:max-min+1},(_,i)=>i+min);
+      while (uniq.length < count) {
+        const r = pool[Math.floor(Math.random()*pool.length)];
+        if (!uniq.includes(r)) uniq.push(r);
+      }
+      return uniq.slice(0,count).sort((a,b)=>a-b);
+    }
+
+    // 4. Carrega info de modalidade
+    let ultimaKey = null;
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada');
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+    });
+
+    // 5. Handler Gerar Aposta
+    btnGerar.addEventListener('click', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada');
+      const key = txtSonho.value.trim() + '|' + simbolosSel.sort().join(',');
+      if (ultimaKey === key) return;
+      ultimaKey = key;
+
+      // define target, min, max
+      let target, min=1, max=60;
+      switch(mod) {
+        case 'megasena':   target=6;  break;
+        case 'quina':      target=5;  max=80; break;
+        case 'lotofacil':  target=15; max=25; break;
+        case 'lotomania':  target=20; max=100; break;
+        case 'duplasena':  target=12; max=50; break;
+        case 'federal':    target=6;  break;
+        case 'timemania':  target=7;  max=80; break;
+        case 'diadesorte': target=7;  max=31; break;
+        case 'supersete':  target=7;  min=0; max=9; break;
+        default:           target=6;  break;
+      }
+
+      // coleta bruta
+      const tokens = txtSonho.value
+        .toLowerCase().replace(/[^a-zà-ú ]/g,' ')
+        .split(/\s+/).filter(t=>mapaDezenas[t]);
+      let dezenas = tokens.map(t=>mapaDezenas[t]);
+      simbolosSel.forEach(p=>dezenas.push(mapaDezenas[p]));
+
+      // ajusta e exibe
+      const resultado = ajustarDezenas(dezenas, target, min, max);
+      resultadoDiv.textContent = `Seus números para ${mod.toUpperCase()}: ${resultado.join(', ')}`;
+      btnGerar.disabled = true;
+    });
+
+    // 6. Nova aposta
+    btnNova.addEventListener('click', () => {
+      resultadoDiv.innerHTML = '';
+      ultimaKey = null;
+      btnGerar.disabled = false;
+    });
+  </script>
+</body>
+</html>

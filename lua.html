@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fases da Lua – Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Fases da Lua</h1>
+
+    <div class="data-block">
+      <label for="fase-lua">Selecione a fase da Lua:</label>
+      <select id="fase-lua">
+        <option value="">– Escolha –</option>
+        <option value="nova">Lua Nova</option>
+        <option value="crescente">Lua Crescente</option>
+        <option value="cheia">Lua Cheia</option>
+        <option value="minguante">Lua Minguante</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="btn-gerar" disabled>Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta-lua"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para seleção de métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+  </div>
+
+  <script>
+    // 1. Mapeamento fases → dezenas
+    const fases = {
+      nova:     [3,17,25,39,48,52],
+      crescente:[8,12,31,44,57,63],
+      cheia:    [1,22,36,49,55,70],
+      minguante:[6,19,33,41,60,74]
+    };
+
+    // 2. Função auxiliar para ajustar ao número exato de dezenas
+    function ajustarDezenas(arr, count, min, max) {
+      // filtra no intervalo e torna único
+      const filt = arr.filter(n => n >= min && n <= max);
+      const uniq = [...new Set(filt)].sort(() => Math.random() - 0.5);
+      const pool = Array.from({ length: max - min + 1 }, (_, i) => i + min);
+
+      // preenche aleatoriamente se faltar
+      while (uniq.length < count) {
+        const r = pool[Math.floor(Math.random() * pool.length)];
+        if (!uniq.includes(r)) uniq.push(r);
+      }
+      return uniq.slice(0, count).sort((a, b) => a - b);
+    }
+
+    // 3. Elementos da UI
+    const selFase = document.getElementById('fase-lua');
+    const btnGerar = document.getElementById('btn-gerar');
+    const btnNova = document.getElementById('btn-nova');
+    const resDiv = document.getElementById('resultado-aposta-lua');
+    let ultimaChave = null;
+
+    // 4. Exibe modalidade no topo e controla habilitação do botão
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+
+      // Habilita o botão só quando uma fase for escolhida
+      selFase.addEventListener('change', () => {
+        btnGerar.disabled = selFase.value === '';
+      });
+    });
+
+    // 5. Geração de aposta
+    btnGerar.addEventListener('click', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      const fase = selFase.value;
+      const chaveAtual = `${mod}|${fase}`;
+
+      // Idempotência: mesma escolha não regenera
+      if (ultimaChave === chaveAtual) return;
+      ultimaChave = chaveAtual;
+
+      // Define quantos números e faixa por modalidade
+      let count = 6, min = 1, max = 60;
+      switch (mod) {
+        case 'megasena':    count = 6;  max = 60; break;
+        case 'quina':       count = 5;  max = 80; break;
+        case 'lotofacil':   count = 15; max = 25; break;
+        case 'lotomania':   count = 20; max = 100; break;
+        case 'duplasena':   count = 12; max = 50; break;
+        case 'federal':     count = 6;  max = 60; break;
+        case 'timemania':   count = 7;  max = 80; break;
+        case 'diadesorte':  count = 7;  max = 31; break;
+        case 'supersete':   count = 7;  min = 0;  max = 9; break;
+      }
+
+      // Coleta as dezenas da fase e ajusta
+      const base = fases[fase] || [];
+      const resultado = ajustarDezenas(base, count, min, max);
+
+      resDiv.textContent =
+        `Seus números para ${mod.toUpperCase()} — Lua ${fase.charAt(0).toUpperCase() + fase.slice(1)}: ` +
+        resultado.join(', ');
+
+      btnGerar.disabled = true;
+    });
+
+    // 6. Nova aposta: limpa tudo e reativa gerar
+    btnNova.addEventListener('click', () => {
+      selFase.selectedIndex = 0;
+      resDiv.textContent = '';
+      ultimaChave = null;
+      btnGerar.disabled = true;
+    });
+  </script>
+</body>
+</html>
