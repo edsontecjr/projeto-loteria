@@ -1,14 +1,42 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Interpretação de Sonhos - Gerador de Apostas</title>
+  <title>Interpretação de Sonhos – Gerador de Apostas</title>
   <link rel="stylesheet" href="index.css"/>
+  <style>
+    .simbolo {
+      display: inline-block;
+      margin: 0.2em;
+      padding: 0.4em 0.6em;
+      background: #f0f0f0;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .simbolo.selecionado {
+      background: #d0d0d0;
+    }
+    .modalidade-info {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 0.5em;
+    }
+    .dezena-slot {
+      display: inline-block;
+      width: 2em;
+      text-align: center;
+      font-weight: bold;
+      margin: 0 .2em;
+      font-size: 1.2em;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Interpretação de Sonhos</h1>
+    <div id="banner-modalidade"></div>
 
     <p>Descreva o seu sonho abaixo:</p>
     <textarea id="descricao-sonho" placeholder="Eu sonhei com um passarinho verde voando perto da janela..."></textarea>
@@ -16,7 +44,7 @@
     <p>Ou selecione símbolos comuns do seu sonho:</p>
     <div class="simbolos-comuns"></div>
 
-    <p>Elementos do sonho selecionados:</p>
+    <p>Elementos selecionados:</p>
     <div id="elementos-selecionados">Nenhum elemento selecionado.</div>
 
     <div class="actions">
@@ -24,63 +52,99 @@
       <button id="btn-nova">Nova Aposta</button>
     </div>
 
-    <div id="resultado-aposta"></div>
+    <div id="resultado-aposta" style="margin-top:1em;"></div>
 
-    <a href="selecao_metodo.html" class="link-voltar">← Voltar para a seleção de métodos</a>
-    <a href="index.html" class="link-voltar">← Voltar para a página inicial</a>
-
+    <p style="margin-top:1.5em;">
+      <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a><br>
+      <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    </p>
   </div>
 
   <script>
-    // 1. Palavras-chave e mapeamento
+    // gera chave para hoje (YYYY-MM-DD)
+    function hojeKey() {
+      return new Date().toISOString().slice(0,10);
+    }
+    // remove entradas com mais de 30 dias
+    function limparAntigas(){
+      const hoje = new Date(hojeKey());
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('aposta_sonho_')) {
+          try {
+            const o = JSON.parse(localStorage.getItem(k));
+            if ((hoje - new Date(o.data)) / 86400000 > 30) {
+              localStorage.removeItem(k);
+            }
+          } catch {}
+        }
+      });
+    }
+
+    // animação “roleta” para cada slot
+    function animarSlot(el, final, delay){
+      const min = 1, max = 60;
+      const iv = setInterval(() => {
+        el.textContent = String(Math.floor(Math.random()*(max-min+1))+min)
+                          .padStart(2,'0');
+      }, 50);
+      setTimeout(() => {
+        clearInterval(iv);
+        el.textContent = String(final).padStart(2,'0');
+      }, delay);
+    }
+
+    // 80 palavras-chave
     const palavrasChave = [
       'vermelho','azul','verde','amarelo','roxo','preto','rosa','branco',
+      'cinza','marrom','laranja','bege','dourado','prata','turquesa','bordô',
       'gato','cachorro','leão','tigre','pássaro','zebra','elefante','cobra','macaco',
-      'chuva','sol','vento','neve','neblina',
-      'mãe','pai','irmã','irmão','amigo','sobrinho(a)','tio(a)','cunhado(a)','sogro(a)','filho(a)',
-      'amor','medo','alegria','tristeza','raiva',
-      'árvore','rio','montanha','pedra','mar','onda','penhasco','moita','planta','raiz',
-      'carro','casa','livro','relógio','telefone','maçaneta','fechadura','chave','bicicleta','moto','caminhão',
-      'flor','estrela','lua','fogo','água','sol','céu',
-      'grama','criança','cadeira','mesa','nuvem','tv','quadro','sofá','ventilador','computador','faca','colher','garfo','prato','geladeira','fogão','janela','porta','telhado','parede','piso'
+      'urso','raposa','coelho','golfinho','baleia','tartaruga','papagaio','coruja',
+      'flamingo','jacaré','canguru','foca','rato','hipopótamo','rinoceronte','guepardo',
+      'chuva','sol','vento','neve','neblina','tempestade','arco-íris','granizo',
+      'geada','orvalho','trovão','nuvem','céu','aurora','tornado','furacão',
+      'mãe','pai','irmã','irmão','avó','avô','tio','tia','primo','prima','sobrinho','sobrinha',
+      'amigo','namorado','namorada','marido','esposa','filho','filha','bebê','criança','adulto',
+      'amor','medo','alegria','tristeza','raiva','calma','ansiedade','surpresa','nojo','confiança'
     ];
+
+    // mapeia cada palavra a um número 1–60 diferente
     const mapaDezenas = {};
-    (function initMap() {
-      const disponiveis = Array.from({length:60}, (_,i)=>i+1)
-                              .sort(() => Math.random() - 0.5);
-      palavrasChave.forEach((p,i)=> mapaDezenas[p]=disponiveis[i]);
+    (()=>{
+      const nums = Array.from({length:60},(_,i)=>i+1)
+                        .sort(()=>Math.random()-.5);
+      palavrasChave.forEach((p,i)=> mapaDezenas[p] = nums[i]);
     })();
 
-    // 2. Monta UI de símbolos
-    const simbolosDiv = document.querySelector('.simbolos-comuns');
+    // monta a lista de símbolos clicáveis
+    const simbolosDiv     = document.querySelector('.simbolos-comuns');
     const elementosSelDiv = document.getElementById('elementos-selecionados');
-    const resultadoDiv = document.getElementById('resultado-aposta');
-    const txtSonho = document.getElementById('descricao-sonho');
-    const btnGerar = document.getElementById('btn-gerar');
-    const btnNova  = document.getElementById('btn-nova');
-    let simbolosSel = [];
+    const txtSonho        = document.getElementById('descricao-sonho');
+    const btnGerar        = document.getElementById('btn-gerar');
+    const btnNova         = document.getElementById('btn-nova');
+    const resDiv          = document.getElementById('resultado-aposta');
+    const banner          = document.getElementById('banner-modalidade');
+    let simbolosSel       = [];
+    let ultimaChave       = null;
 
-    palavrasChave.forEach(palavra => {
-      const el = document.createElement('div');
-      el.className = 'simbolo';
-      el.textContent = palavra;
-      el.addEventListener('click', () => {
-        if (el.classList.toggle('selecionado')) {
-          simbolosSel.push(palavra);
-        } else {
-          simbolosSel = simbolosSel.filter(x=>x!==palavra);
-        }
-        elementosSelDiv.textContent = simbolosSel.length 
-          ? simbolosSel.join(', ') 
+    palavrasChave.forEach(p => {
+      const d = document.createElement('div');
+      d.className = 'simbolo';
+      d.textContent = p;
+      d.onclick = () => {
+        d.classList.toggle('selecionado');
+        if (d.classList.contains('selecionado')) simbolosSel.push(p);
+        else simbolosSel = simbolosSel.filter(x => x !== p);
+        elementosSelDiv.textContent = simbolosSel.length
+          ? simbolosSel.join(', ')
           : 'Nenhum elemento selecionado.';
-      });
-      simbolosDiv.appendChild(el);
+      };
+      simbolosDiv.appendChild(d);
     });
 
-    // 3. Ajusta qualquer lista para count dezenas em [min,max]
-    function ajustarDezenas(arr, count, min, max) {
-      const filt = arr.filter(n=>n>=min&&n<=max);
-      let uniq = [...new Set(filt)].sort(()=>Math.random()-0.5);
+    // filtra e ajusta array a exactly count números em [min,max]
+    function ajustarDezenas(arr, count, min, max){
+      let uniq = [...new Set(arr.filter(n=>n>=min&&n<=max))];
+      uniq.sort(()=>Math.random()-.5);
       const pool = Array.from({length:max-min+1},(_,i)=>i+min);
       while (uniq.length < count) {
         const r = pool[Math.floor(Math.random()*pool.length)];
@@ -89,59 +153,77 @@
       return uniq.slice(0,count).sort((a,b)=>a-b);
     }
 
-    // 4. Carrega info de modalidade
-    let ultimaKey = null;
+    // ao carregar, exibe modalidade e limpa cache antigo
     document.addEventListener('DOMContentLoaded', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada');
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
       if (mod) {
-        const info = document.createElement('div');
-        info.className = 'modalidade-info';
-        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
-        document.querySelector('.container').prepend(info);
+        banner.innerHTML = `<div class="modalidade-info">
+          Gerando para: ${mod.toUpperCase()}
+        </div>`;
       }
+      limparAntigas();
     });
 
-    // 5. Handler Gerar Aposta
-    btnGerar.addEventListener('click', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada');
-      const key = txtSonho.value.trim() + '|' + simbolosSel.sort().join(',');
-      if (ultimaKey === key) return;
-      ultimaKey = key;
-
-      // define target, min, max
-      let target, min=1, max=60;
-      switch(mod) {
-        case 'megasena':   target=6;  break;
-        case 'quina':      target=5;  max=80; break;
-        case 'lotofacil':  target=15; max=25; break;
-        case 'lotomania':  target=20; max=100; break;
-        case 'duplasena':  target=12; max=50; break;
-        case 'federal':    target=6;  break;
-        case 'timemania':  target=7;  max=80; break;
-        case 'diadesorte': target=7;  max=31; break;
-        case 'supersete':  target=7;  min=0; max=9; break;
-        default:           target=6;  break;
+    // click “Gerar Aposta”
+    btnGerar.onclick = () => {
+      const mod   = localStorage.getItem('modalidadeSelecionada') || '';
+      const hoje  = hojeKey();
+      const key   = `aposta_sonho_${mod}_${encodeURIComponent(txtSonho.value.trim())}_${simbolosSel.sort().join(',')}_${hoje}`;
+      limparAntigas();
+      // se já existir para hoje
+      if (localStorage.getItem(key)) {
+        const nums = JSON.parse(localStorage.getItem(key)).numeros;
+        exibir(nums);
+        btnGerar.disabled = true;
+        return;
       }
-
-      // coleta bruta
-      const tokens = txtSonho.value
+      // define quantos números por modalidade
+      let count = 6, min = 1, max = 60;
+      switch(mod) {
+        case 'megasena':   count=6;  max=60;   break;
+        case 'quina':      count=5;  max=80;   break;
+        case 'lotofacil':  count=15; max=25;   break;
+        case 'lotomania':  count=20; max=100;  break;
+        case 'duplasena':  count=12; max=50;   break;
+        case 'federal':    count=6;  max=60;   break;
+        case 'timemania':  count=7;  max=80;   break;
+        case 'diadesorte': count=7;  max=31;   break;
+        case 'supersete':  count=7;  min=0;max=9;break;
+      }
+      // colhe tokens + símbolos
+      const toks = txtSonho.value
         .toLowerCase().replace(/[^a-zà-ú ]/g,' ')
         .split(/\s+/).filter(t=>mapaDezenas[t]);
-      let dezenas = tokens.map(t=>mapaDezenas[t]);
-      simbolosSel.forEach(p=>dezenas.push(mapaDezenas[p]));
-
-      // ajusta e exibe
-      const resultado = ajustarDezenas(dezenas, target, min, max);
-      resultadoDiv.textContent = `Seus números para ${mod.toUpperCase()}: ${resultado.join(', ')}`;
+      const arr = toks.map(t=>mapaDezenas[t])
+        .concat(simbolosSel.map(s=>mapaDezenas[s]));
+      const nums = ajustarDezenas(arr, count, min, max);
+      localStorage.setItem(key, JSON.stringify({numeros:nums,data:hoje}));
+      exibir(nums);
       btnGerar.disabled = true;
-    });
+    };
 
-    // 6. Nova aposta
-    btnNova.addEventListener('click', () => {
-      resultadoDiv.innerHTML = '';
-      ultimaKey = null;
+    // exibe com efeito “roleta”
+    function exibir(nums){
+      resDiv.innerHTML = '';
+      nums.forEach((n,i) => {
+        const sp = document.createElement('span');
+        sp.className = 'dezena-slot';
+        resDiv.appendChild(sp);
+        animarSlot(sp, n, (i+1)*1000);
+      });
+    }
+
+    // “Nova Aposta”
+    btnNova.onclick = () => {
+      resDiv.innerHTML = '';
+      txtSonho.value = '';
+      simbolosSel = [];
+      document.querySelectorAll('.simbolo.selecionado')
+        .forEach(e => e.classList.remove('selecionado'));
+      elementosSelDiv.textContent = 'Nenhum elemento selecionado.';
       btnGerar.disabled = false;
-    });
+      ultimaChave = null;
+    };
   </script>
 </body>
 </html>

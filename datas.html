@@ -5,13 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Datas Específicas – Gerador de Apostas</title>
   <link rel="stylesheet" href="index.css"/>
+  <style>
+    .dezena-slot {
+      display: inline-block;
+      width: 2.5em;
+      text-align: center;
+      font-weight: bold;
+      margin: 0 .3em;
+      font-size: 1.2em;
+    }
+    .modalidade-info {
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-bottom: .5em;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Datas Específicas</h1>
 
-    <!-- Aqui será injetado o banner da modalidade -->
-    <!-- script irá adicionar <div class="modalidade-info">Gerando para: ...</div> -->
+    <!-- Banner de modalidade -->
+    <div id="banner-modalidade"></div>
 
     <div class="data-block">
       <label for="data-selecionada">Selecione uma data:</label>
@@ -34,156 +50,198 @@
       </select>
     </div>
 
-    <div class="actions">
+    <div class="actions" style="margin-top:1em;">
       <button id="btn-gerar">Gerar Aposta</button>
       <button id="btn-nova">Nova Aposta</button>
     </div>
 
-    <div id="resultado-aposta-datas"></div>
+    <div id="resultado-aposta-datas" style="margin-top:1em;"></div>
 
-    <a href="selecao_metodo.html" class="link-voltar">← Voltar para a seleção de métodos</a>
-    <a href="index.html" class="link-voltar">← Voltar para a página inicial</a>
+    <p style="margin-top:1.5em;">
+      <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a><br>
+      <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    </p>
   </div>
 
   <script>
-    // ===== Exibe, no topo, a “modalidade” selecionada =====
-    document.addEventListener('DOMContentLoaded', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada') || '';
-      if (mod) {
-        const banner = document.createElement('div');
-        banner.className = 'modalidade-info';
-        banner.textContent = `Gerando para: ${mod.toUpperCase()}`;
-        // insere antes do h1
-        const container = document.querySelector('.container');
-        container.insertBefore(banner, container.firstElementChild.nextSibling);
+    // ---------- Utilitários de data/storage ----------
+    function hojeStr() {
+      return new Date().toISOString().slice(0,10);
+    }
+    function limparExpirados() {
+      const hoje = new Date(hojeStr());
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('aposta_datas_')) {
+          try {
+            const reg = JSON.parse(localStorage.getItem(key));
+            if ((hoje - new Date(reg.geradoEm)) / (1000*60*60*24) > 30) {
+              localStorage.removeItem(key);
+            }
+          } catch{}
+        }
       }
-    });
+    }
 
-    // ===== Extrai números de strings de data =====
+    // ---------- Extração e ajuste de dezenas ----------
     function extrairNumerosDaData(data) {
-      const nums = [];
-      const b = data.split('/');
-      const h = data.split('-');
-      if (b.length === 3 && !isNaN(new Date(+b[2], b[1]-1, +b[0]))) {
-        const [d,m,y] = b, y2 = y.slice(-2);
-        nums.push(+d, +m, +y2, +y);
-        nums.push(+(d+m), +(m+y2), +(d+y2));
-        nums.push(...[d,m,y].map(s => [...s].reduce((a,c)=>a+ +c,0)));
-      } else if (h.length === 3 && !isNaN(new Date(+h[0], h[1]-1, +h[2]))) {
-        const [y,m,d] = h, y2 = y.slice(-2);
-        nums.push(+d, +m, +y2, +y);
-        nums.push(+(d+m), +(m+y2), +(d+y2));
-        nums.push(...[d,m,y].map(s => [...s].reduce((a,c)=>a+ +c,0)));
+      const nums=[];
+      const b=data.split('/'), h=data.split('-');
+      if (b.length===3 && !isNaN(new Date(+b[2],b[1]-1,+b[0]))) {
+        const [d,m,y]=b, y2=y.slice(-2);
+        nums.push(+d,+m,+y2,+y);
+        nums.push(+(d+m),+(m+y2),+(d+y2));
+        nums.push(...[d,m,y].map(s=>[...s].reduce((a,c)=>a+ +c,0)));
+      } else if (h.length===3 && !isNaN(new Date(+h[0],h[1]-1,+h[2]))) {
+        const [y,m,d]=h, y2=y.slice(-2);
+        nums.push(+d,+m,+y2,+y);
+        nums.push(+(d+m),+(m+y2),+(d+y2));
+        nums.push(...[d,m,y].map(s=>[...s].reduce((a,c)=>a+ +c,0)));
       }
       return nums;
     }
 
-    // ===== Coleta números brutos =====
-    function coletarNumerosBrutos() {
+    function coletarBrutos() {
       const dataVal = document.getElementById('data-selecionada').value;
       const txtVal  = document.getElementById('acontecimento-data').value.trim();
       const tipo    = document.getElementById('tipo-conversao').value;
-      const nums    = [];
+      let nums=[];
 
-      if (dataVal) {
-        const [y,m,d] = dataVal.split('-').map(Number);
-        const sD = d, sM = m, sY = y % 100, fY = y;
-        const sumD = [...String(d)].reduce((a,c)=>a+ +c,0);
-        const sumM = [...String(m)].reduce((a,c)=>a+ +c,0);
-        const sumY = [...String(y)].reduce((a,c)=>a+ +c,0);
-        switch(tipo) {
-          case 'basico':
-            nums.push(sD, sM, sY);
-            break;
-          case 'somas_basicas':
-            nums.push(sD + sM, sM + sY, sD + sY);
-            break;
-          case 'soma_digitos':
-            nums.push(sumD, sumM, sumY);
-            break;
+      if(dataVal){
+        const [y,m,d]=dataVal.split('-').map(Number);
+        const sD=d,sM=m,sY=y%100, fY=y;
+        const sumD=[...String(d)].reduce((a,c)=>a+ +c,0);
+        const sumM=[...String(m)].reduce((a,c)=>a+ +c,0);
+        const sumY=[...String(y)].reduce((a,c)=>a+ +c,0);
+        switch(tipo){
+          case 'basico': nums.push(sD,sM,sY);break;
+          case 'somas_basicas': nums.push(sD+sM,sM+sY,sD+sY);break;
+          case 'soma_digitos': nums.push(sumD,sumM,sumY);break;
           case 'completa':
             nums.push(
-              +(String(d).padStart(2,'0') + String(m).padStart(2,'0')),
-              +(String(m).padStart(2,'0') + String(sY)),
+              +(String(d).padStart(2,'0')+String(m).padStart(2,'0')),
+              +(String(m).padStart(2,'0')+String(sY)),
               fY
-            );
-            break;
+            );break;
           case 'todos':
-            nums.push(
-              sD, sM, sY,
-              sD+sM, sM+sY, sD+sY,
-              sumD, sumM, sumY,
-              +(String(d).padStart(2,'0') + String(m).padStart(2,'0')),
-              +(String(m).padStart(2,'0') + String(sY)),
-              fY
-            );
-            break;
+            nums.push(sD,sM,sY,sD+sM,sM+sY,sD+sY,sumD,sumM,sumY,
+                      +(String(d).padStart(2,'0')+String(m).padStart(2,'0')),
+                      +(String(m).padStart(2,'0')+String(sY)),fY);
         }
       }
 
-      if (txtVal) {
-        const found = txtVal.match(/\b\d{1,4}\b/g) || [];
-        nums.push(...found.map(Number), ...extrairNumerosDaData(txtVal));
+      if(txtVal){
+        const found=txtVal.match(/\b\d{1,4}\b/g)||[];
+        nums=nums.concat(found.map(Number), extrairNumerosDaData(txtVal));
       }
-
       return nums;
     }
 
-    // ===== Ajusta ao número exato de dezenas =====
-    function ajustarDezenas(arr, count, min, max) {
-      const filt = [...new Set(arr.filter(n=>n>=min&&n<=max))];
+    function ajustarDezenas(arr,count,min,max){
+      const filt=[...new Set(arr.filter(n=>n>=min&&n<=max))];
       filt.sort(()=>Math.random()-0.5);
-      const pool = Array.from({length:max-min+1},(_,i)=>i+min);
-      while (filt.length < count) {
-        const r = pool[Math.floor(Math.random()*pool.length)];
-        if (!filt.includes(r)) filt.push(r);
+      const pool=Array.from({length:max-min+1},(_,i)=>i+min);
+      while(filt.length<count){
+        const r=pool[Math.floor(Math.random()*pool.length)];
+        if(!filt.includes(r)) filt.push(r);
       }
       return filt.slice(0,count).sort((a,b)=>a-b);
     }
 
-    // ===== Controle de UI =====
-    const btnG   = document.getElementById('btn-gerar');
-    const btnN   = document.getElementById('btn-nova');
-    const resDiv = document.getElementById('resultado-aposta-datas');
-    let ultimaKey = null;
+    // ---------- Animação ----------
+    function animarSlot(span,min,max,final,delay,vel=50){
+      const iv=setInterval(()=>{
+        span.textContent=String(
+          Math.floor(Math.random()*(max-min+1))+min
+        ).padStart(2,'0');
+      },vel);
+      setTimeout(()=>{
+        clearInterval(iv);
+        span.textContent=String(final).padStart(2,'0');
+      },delay);
+    }
 
-    btnG.addEventListener('click', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada') || '';
-      const key = [
-        document.getElementById('data-selecionada').value,
-        document.getElementById('tipo-conversao').value,
-        document.getElementById('acontecimento-data').value.trim(),
-        mod
-      ].join('|');
-      if (ultimaKey === key) return;
-      ultimaKey = key;
+    // ---------- UI & controle ----------
+    const btnG=document.getElementById('btn-gerar');
+    const btnN=document.getElementById('btn-nova');
+    const resDiv=document.getElementById('resultado-aposta-datas');
+    const banner=document.getElementById('banner-modalidade');
+    let ultimaKey=null;
 
-      // define regras por modalidade
-      let count = 10, min = 1, max = 60;
-      switch(mod) {
-        case 'megasena':   count = 6;  max = 60;  break;
-        case 'quina':      count = 5;  max = 80;  break;
-        case 'lotofacil':  count = 15; max = 25;  break;
-        case 'lotomania':  count = 20; max = 100; break;
-        case 'duplasena':  count = 12; max = 50;  break;
-        case 'federal':    count = 6;  max = 60;  break;
-        case 'timemania':  count = 7;  max = 80;  break;
-        case 'diadesorte': count = 7;  max = 31;  break;
-        case 'supersete':  count = 7;  min = 0;    max = 9;  break;
-        default:           count = 10; max = 60;  break;
+    document.addEventListener('DOMContentLoaded',()=>{
+      const mod=localStorage.getItem('modalidadeSelecionada')||'';
+      if(mod){
+        banner.innerHTML=`<div class="modalidade-info">
+          Gerando para: ${mod.toUpperCase()}
+        </div>`;
       }
-
-      const bruto    = coletarNumerosBrutos();
-      const resultado = ajustarDezenas(bruto, count, min, max);
-      resDiv.textContent = `Seus números para ${mod.toUpperCase()}: ${resultado.join(', ')}`;
-
-      btnG.disabled = true;
+      limparExpirados();
+      btnG.disabled=false;
     });
 
-    btnN.addEventListener('click', () => {
-      resDiv.textContent = '';
-      ultimaKey = null;
-      btnG.disabled = false;
+    btnG.addEventListener('click',()=>{
+      const mod=localStorage.getItem('modalidadeSelecionada')||'';
+      const dstr=document.getElementById('data-selecionada').value;
+      const tstr=document.getElementById('tipo-conversao').value;
+      const cstr=document.getElementById('acontecimento-data').value.trim();
+      const hoje=hojeStr();
+      const key=`aposta_datas_${mod}_${encodeURIComponent(dstr)}_${tstr}_${encodeURIComponent(cstr)}_${hoje}`;
+
+      limparExpirados();
+      const regJSON=localStorage.getItem(key);
+      if(regJSON){
+        const reg=JSON.parse(regJSON);
+        if(reg.geradoEm===hoje){
+          resDiv.innerHTML='';
+          reg.numeros.forEach((n,i)=>{
+            const sp=document.createElement('span');
+            sp.className='dezena-slot';
+            resDiv.appendChild(sp);
+            animarSlot(sp,reg.min,reg.max,n,(i+1)*1000);
+          });
+          btnG.disabled=true;
+          return;
+        }
+      }
+
+      let count=10,min=1,max=60;
+      switch(mod){
+        case 'megasena': count=6; max=60; break;
+        case 'quina': count=5; max=80; break;
+        case 'lotofacil': count=15; max=25; break;
+        case 'lotomania': count=20; max=100; break;
+        case 'duplasena': count=12; max=50; break;
+        case 'federal': count=6; max=60; break;
+        case 'timemania': count=7; max=80; break;
+        case 'diadesorte': count=7; max=31; break;
+        case 'supersete': count=7; min=0; max=9; break;
+      }
+
+      const bruto=coletarBrutos();
+      const numeros=ajustarDezenas(bruto,count,min,max);
+
+      localStorage.setItem(key,JSON.stringify({
+        numeros:numeros,
+        geradoEm:hoje,
+        min:min,
+        max:max
+      }));
+
+      resDiv.innerHTML='';
+      numeros.forEach((n,i)=>{
+        const sp=document.createElement('span');
+        sp.className='dezena-slot';
+        resDiv.appendChild(sp);
+        animarSlot(sp,min,max,n,(i+1)*1000);
+      });
+
+      btnG.disabled=true;
+    });
+
+    btnN.addEventListener('click',()=>{
+      resDiv.innerHTML='';
+      ultimaKey=null;
+      btnG.disabled=false;
     });
   </script>
 </body>

@@ -5,10 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Fases da Lua – Gerador de Apostas</title>
   <link rel="stylesheet" href="index.css"/>
+  <style>
+    .dezena-slot {
+      display: inline-block;
+      width: 2.5em;
+      text-align: center;
+      font-weight: bold;
+      margin: 0 .3em;
+      font-size: 1.2em;
+    }
+    .modalidade-info {
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-bottom: .5em;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Fases da Lua</h1>
+
+    <!-- Banner de modalidade -->
+    <div id="banner-modalidade"></div>
 
     <div class="data-block">
       <label for="fase-lua">Selecione a fase da Lua:</label>
@@ -21,19 +40,39 @@
       </select>
     </div>
 
-    <div class="actions">
+    <div class="actions" style="margin-top:1em;">
       <button id="btn-gerar" disabled>Gerar Aposta</button>
       <button id="btn-nova">Nova Aposta</button>
     </div>
 
-    <div id="resultado-aposta-lua"></div>
+    <div id="resultado-aposta-lua" style="margin-top:1em;"></div>
 
-    <a href="selecao_metodo.html" class="link-voltar">← Voltar para seleção de métodos</a>
-    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    <p style="margin-top:1.5em;">
+      <a href="selecao_metodo.html" class="link-voltar">← Voltar para seleção de métodos</a><br>
+      <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    </p>
   </div>
 
   <script>
-    // 1. Mapeamento fases → dezenas
+    // ---------- Utilitários de data/storage ----------
+    function hojeStr() {
+      return new Date().toISOString().slice(0,10);
+    }
+    function limparExpirados() {
+      const hoje = new Date(hojeStr());
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('aposta_lua_')) {
+          try {
+            const reg = JSON.parse(localStorage.getItem(key));
+            if ((hoje - new Date(reg.geradoEm)) / (1000*60*60*24) > 30) {
+              localStorage.removeItem(key);
+            }
+          } catch{}
+        }
+      });
+    }
+
+    // ---------- Mapeamento fases → dezenas ----------
     const fases = {
       nova:     [3,17,25,39,48,52],
       crescente:[8,12,31,44,57,63],
@@ -41,85 +80,111 @@
       minguante:[6,19,33,41,60,74]
     };
 
-    // 2. Função auxiliar para ajustar ao número exato de dezenas
+    // Ajusta array a exatamente count dezenas em [min,max]
     function ajustarDezenas(arr, count, min, max) {
-      // filtra no intervalo e torna único
-      const filt = arr.filter(n => n >= min && n <= max);
-      const uniq = [...new Set(filt)].sort(() => Math.random() - 0.5);
-      const pool = Array.from({ length: max - min + 1 }, (_, i) => i + min);
-
-      // preenche aleatoriamente se faltar
+      const filt = arr.filter(n=>n>=min&&n<=max);
+      const uniq = [...new Set(filt)].sort(()=>Math.random()-0.5);
+      const pool = Array.from({length:max-min+1},(_,i)=>i+min);
       while (uniq.length < count) {
-        const r = pool[Math.floor(Math.random() * pool.length)];
+        const r = pool[Math.floor(Math.random()*pool.length)];
         if (!uniq.includes(r)) uniq.push(r);
       }
-      return uniq.slice(0, count).sort((a, b) => a - b);
+      return uniq.slice(0,count).sort((a,b)=>a-b);
     }
 
-    // 3. Elementos da UI
+    // Animação "roleta" para cada slot
+    function animarSlot(span, min, max, final, delay) {
+      const iv = setInterval(()=>{
+        const rnd = Math.floor(Math.random()*(max-min+1))+min;
+        span.textContent = String(rnd).padStart(2,'0');
+      }, 50);
+      setTimeout(()=>{
+        clearInterval(iv);
+        span.textContent = String(final).padStart(2,'0');
+      }, delay);
+    }
+
+    // ---------- UI e controle ----------
     const selFase = document.getElementById('fase-lua');
     const btnGerar = document.getElementById('btn-gerar');
-    const btnNova = document.getElementById('btn-nova');
-    const resDiv = document.getElementById('resultado-aposta-lua');
+    const btnNova  = document.getElementById('btn-nova');
+    const resDiv   = document.getElementById('resultado-aposta-lua');
+    const banner   = document.getElementById('banner-modalidade');
     let ultimaChave = null;
 
-    // 4. Exibe modalidade no topo e controla habilitação do botão
-    document.addEventListener('DOMContentLoaded', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const mod = localStorage.getItem('modalidadeSelecionada')||'';
       if (mod) {
-        const info = document.createElement('div');
-        info.className = 'modalidade-info';
-        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
-        document.querySelector('.container').prepend(info);
+        banner.innerHTML = `<div class="modalidade-info">
+          Gerando para: ${mod.toUpperCase()}
+        </div>`;
       }
-
-      // Habilita o botão só quando uma fase for escolhida
-      selFase.addEventListener('change', () => {
+      limparExpirados();
+      selFase.addEventListener('change', ()=>{
         btnGerar.disabled = selFase.value === '';
       });
     });
 
-    // 5. Geração de aposta
-    btnGerar.addEventListener('click', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+    btnGerar.addEventListener('click', ()=>{
+      const mod = localStorage.getItem('modalidadeSelecionada')||'';
       const fase = selFase.value;
-      const chaveAtual = `${mod}|${fase}`;
+      const hoje = hojeStr();
+      const key = `aposta_lua_${mod}_${fase}_${hoje}`;
 
-      // Idempotência: mesma escolha não regenera
-      if (ultimaChave === chaveAtual) return;
-      ultimaChave = chaveAtual;
-
-      // Define quantos números e faixa por modalidade
-      let count = 6, min = 1, max = 60;
-      switch (mod) {
-        case 'megasena':    count = 6;  max = 60; break;
-        case 'quina':       count = 5;  max = 80; break;
-        case 'lotofacil':   count = 15; max = 25; break;
-        case 'lotomania':   count = 20; max = 100; break;
-        case 'duplasena':   count = 12; max = 50; break;
-        case 'federal':     count = 6;  max = 60; break;
-        case 'timemania':   count = 7;  max = 80; break;
-        case 'diadesorte':  count = 7;  max = 31; break;
-        case 'supersete':   count = 7;  min = 0;  max = 9; break;
+      limparExpirados();
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const reg = JSON.parse(stored);
+        resDiv.innerHTML = '';
+        reg.numeros.forEach((n,i)=>{
+          const span = document.createElement('span');
+          span.className = 'dezena-slot';
+          resDiv.appendChild(span);
+          animarSlot(span, reg.min, reg.max, n, (i+1)*1000);
+        });
+        btnGerar.disabled = true;
+        return;
       }
 
-      // Coleta as dezenas da fase e ajusta
-      const base = fases[fase] || [];
-      const resultado = ajustarDezenas(base, count, min, max);
+      // define regras por modalidade
+      let count=6, min=1, max=60;
+      switch(mod) {
+        case 'megasena':    count=6;  max=60;  break;
+        case 'quina':       count=5;  max=80;  break;
+        case 'lotofacil':   count=15; max=25;  break;
+        case 'lotomania':   count=20; max=100; break;
+        case 'duplasena':   count=12; max=50;  break;
+        case 'federal':     count=6;  max=60;  break;
+        case 'timemania':   count=7;  max=80;  break;
+        case 'diadesorte':  count=7;  max=31;  break;
+        case 'supersete':   count=7;  min=0;   max=9;  break;
+      }
 
-      resDiv.textContent =
-        `Seus números para ${mod.toUpperCase()} — Lua ${fase.charAt(0).toUpperCase() + fase.slice(1)}: ` +
-        resultado.join(', ');
+      const base = fases[fase] || [];
+      const nums = ajustarDezenas(base, count, min, max);
+
+      localStorage.setItem(key, JSON.stringify({
+        numeros:  nums,
+        geradoEm: hoje,
+        min, max
+      }));
+
+      resDiv.innerHTML = '';
+      nums.forEach((n,i)=>{
+        const span = document.createElement('span');
+        span.className = 'dezena-slot';
+        resDiv.appendChild(span);
+        animarSlot(span, min, max, n, (i+1)*1000);
+      });
 
       btnGerar.disabled = true;
     });
 
-    // 6. Nova aposta: limpa tudo e reativa gerar
-    btnNova.addEventListener('click', () => {
+    btnNova.addEventListener('click', ()=>{
       selFase.selectedIndex = 0;
-      resDiv.textContent = '';
-      ultimaChave = null;
-      btnGerar.disabled = true;
+      resDiv.textContent      = '';
+      ultimaChave            = null;
+      btnGerar.disabled       = true;
     });
   </script>
 </body>

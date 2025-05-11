@@ -5,10 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Astrologia – Gerador de Apostas</title>
   <link rel="stylesheet" href="index.css"/>
+  <style>
+    .dezena-slot {
+      display: inline-block;
+      width: 2.5em;
+      text-align: center;
+      font-weight: bold;
+      margin: 0 .3em;
+      font-size: 1.2em;
+    }
+    .modalidade-info {
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-bottom: .5em;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Astrologia</h1>
+
+    <!-- Banner de modalidade -->
+    <div id="banner-modalidade"></div>
 
     <div class="data-block">
       <label for="signo">Selecione o seu signo do zodíaco:</label>
@@ -29,19 +48,40 @@
       </select>
     </div>
 
-    <div class="actions">
+    <div class="actions" style="margin-top:1em;">
       <button id="btn-gerar" disabled>Gerar Aposta</button>
       <button id="btn-nova">Nova Aposta</button>
     </div>
 
-    <div id="resultado-aposta-astrologia"></div>
+    <div id="resultado-aposta-astrologia" style="margin-top:1em;"></div>
 
-    <a href="selecao_metodo.html" class="link-voltar">← Voltar para seleção de métodos</a>
-    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    <p style="margin-top:1.5em;">
+      <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a><br>
+      <a href="index.html" class="link-voltar">← Voltar ao início</a>
+    </p>
   </div>
 
   <script>
-    // 1. Mapeamento signo → dezenas
+    // --- Utilitários de data e limpeza ---
+    function hojeStr() {
+      return new Date().toISOString().slice(0,10);
+    }
+    function limparExpirados() {
+      const hoje = new Date(hojeStr());
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('aposta_astrologia_')) {
+          try {
+            const reg = JSON.parse(localStorage.getItem(key));
+            if ((hoje - new Date(reg.geradoEm)) / (1000*60*60*24) > 30) {
+              localStorage.removeItem(key);
+            }
+          } catch {}
+        }
+      }
+    }
+
+    // --- Mapeamento signo → dezenas ---
     const bancoSignos = {
       aries:     [9,18,27,36,45,54],
       touro:     [6,15,24,33,42,51],
@@ -57,83 +97,118 @@
       peixes:    [12,21,30,39,48,57]
     };
 
-    // 2. Ajusta qualquer lista para count dezenas na faixa [min,max]
+    // --- Ajusta lista para count dezenas em [min,max] ---
     function ajustarDezenas(arr, count, min, max) {
-      // filtra e torna único
       const filt = arr.filter(n => n >= min && n <= max);
-      const uniq = [...new Set(filt)].sort(() => Math.random() - 0.5);
-      const pool = Array.from({length: max - min + 1}, (_, i) => i + min);
-
-      // preenche aleatoriamente se faltar
+      const uniq = [...new Set(filt)];
+      uniq.sort(() => Math.random() - 0.5);
+      const pool = Array.from({length: max-min+1}, (_,i) => i+min);
       while (uniq.length < count) {
-        const r = pool[Math.floor(Math.random() * pool.length)];
+        const r = pool[Math.floor(Math.random()*pool.length)];
         if (!uniq.includes(r)) uniq.push(r);
       }
-      return uniq.slice(0, count).sort((a, b) => a - b);
+      return uniq.slice(0, count).sort((a,b)=>a-b);
     }
 
-    // 3. UI elements
-    const selSigno = document.getElementById('signo');
-    const btnGerar  = document.getElementById('btn-gerar');
-    const btnNova   = document.getElementById('btn-nova');
-    const resDiv    = document.getElementById('resultado-aposta-astrologia');
-    let ultimaChave = null;
+    // --- Animação de roleta ---
+    function animarSlot(span, min, max, final, delay, velocidade=50) {
+      const iv = setInterval(()=>{
+        span.textContent = String(Math.floor(Math.random()*(max-min+1))+min)
+                            .padStart(2,'0');
+      }, velocidade);
+      setTimeout(()=>{
+        clearInterval(iv);
+        span.textContent = String(final).padStart(2,'0');
+      }, delay);
+    }
 
-    // 4. Quando carrega a página
-    document.addEventListener('DOMContentLoaded', () => {
-      const mod = localStorage.getItem('modalidadeSelecionada') || '';
-      if (mod) {
-        const info = document.createElement('div');
-        info.className = 'modalidade-info';
-        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
-        document.querySelector('.container').prepend(info);
+    // --- UI e estado ---
+    const selSigno  = document.getElementById('signo');
+    const btnGerar   = document.getElementById('btn-gerar');
+    const btnNova    = document.getElementById('btn-nova');
+    const resDiv     = document.getElementById('resultado-aposta-astrologia');
+    const banner     = document.getElementById('banner-modalidade');
+    let ultimaChave  = null;
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // 1) banner de modalidade
+      const mod = localStorage.getItem('modalidadeSelecionada')||'';
+      if(mod) {
+        banner.innerHTML = `<div class="modalidade-info">
+          Gerando para: ${mod.toUpperCase()}
+        </div>`;
       }
-      // só habilita ao selecionar signo
-      selSigno.addEventListener('change', () => {
+      // 2) limpar expirados e preparar UI
+      limparExpirados();
+      selSigno.addEventListener('change', ()=>{
         btnGerar.disabled = selSigno.value === '';
       });
     });
 
-    // 5. Gera a aposta
-    btnGerar.addEventListener('click', () => {
-      const mod   = localStorage.getItem('modalidadeSelecionada') || '';
+    btnGerar.addEventListener('click', ()=>{
+      const mod   = localStorage.getItem('modalidadeSelecionada')||'';
       const signo = selSigno.value;
-      const chave = `${mod}|${signo}`;
+      const hoje  = hojeStr();
+      const chave = `aposta_astrologia_${mod}_${signo}_${hoje}`;
 
-      // idempotência
-      if (ultimaChave === chave) return;
-      ultimaChave = chave;
-
-      // define quantos números e faixa por modalidade
-      let count = 6, min = 1, max = 60;
-      switch (mod) {
-        case 'megasena':    count = 6;  max = 60;  break;
-        case 'quina':       count = 5;  max = 80;  break;
-        case 'lotofacil':   count = 15; max = 25;  break;
-        case 'lotomania':   count = 20; max = 100; break;
-        case 'duplasena':   count = 12; max = 50;  break;
-        case 'federal':     count = 6;  max = 60;  break;
-        case 'timemania':   count = 7;  max = 80;  break;
-        case 'diadesorte':  count = 7;  max = 31;  break;
-        case 'supersete':   count = 7;  min = 0; max = 9; break;
+      limparExpirados();
+      const regJSON = localStorage.getItem(chave);
+      if(regJSON) {
+        const reg = JSON.parse(regJSON);
+        if(reg.geradoEm === hoje) {
+          // anima o mesmo resultado
+          resDiv.innerHTML = '';
+          reg.numeros.forEach((n,i)=>{
+            const sp = document.createElement('span');
+            sp.className = 'dezena-slot';
+            resDiv.appendChild(sp);
+            animarSlot(sp, 1, reg.max, n, (i+1)*1000);
+          });
+          btnGerar.disabled = true;
+          return;
+        }
       }
 
-      // coleta base e ajusta
-      const base      = bancoSignos[signo] || [];
-      const resultado = ajustarDezenas(base, count, min, max);
+      // define regras por modalidade
+      let count = 6, min = 1, max = 60;
+      switch(mod) {
+        case 'megasena':    count=6;  max=60;  break;
+        case 'quina':       count=5;  max=80;  break;
+        case 'lotofacil':   count=15; max=25;  break;
+        case 'lotomania':   count=20; max=100; break;
+        case 'duplasena':   count=12; max=50;  break;
+        case 'federal':     count=6;  max=60;  break;
+        case 'timemania':   count=7;  max=80;  break;
+        case 'diadesorte':  count=7;  max=31;  break;
+        case 'supersete':   count=7;  min=0; max=9; break;
+      }
 
-      resDiv.textContent =
-        `Seus números para ${mod.toUpperCase()} — Signo ${signo.charAt(0).toUpperCase()+signo.slice(1)}: ${resultado.join(', ')}`;
+      // gera e armazena
+      const base    = bancoSignos[signo]||[];
+      const numeros = ajustarDezenas(base, count, min, max);
+      localStorage.setItem(chave, JSON.stringify({
+        numeros:   numeros,
+        geradoEm:  hoje,
+        max:       max
+      }));
+
+      // animação
+      resDiv.innerHTML = '';
+      numeros.forEach((n,i)=>{
+        const sp = document.createElement('span');
+        sp.className = 'dezena-slot';
+        resDiv.appendChild(sp);
+        animarSlot(sp, min, max, n, (i+1)*1000);
+      });
 
       btnGerar.disabled = true;
     });
 
-    // 6. Nova aposta
-    btnNova.addEventListener('click', () => {
+    btnNova.addEventListener('click', ()=>{
       selSigno.selectedIndex = 0;
-      resDiv.textContent      = '';
+      resDiv.innerHTML       = '';
       ultimaChave            = null;
-      btnGerar.disabled       = true;
+      btnGerar.disabled      = true;
     });
   </script>
 </body>
