@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Astrologia – Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Astrologia</h1>
+
+    <div class="data-block">
+      <label for="signo">Selecione o seu signo do zodíaco:</label>
+      <select id="signo">
+        <option value="">– Escolha –</option>
+        <option value="aries">Áries</option>
+        <option value="touro">Touro</option>
+        <option value="gemeos">Gêmeos</option>
+        <option value="cancer">Câncer</option>
+        <option value="leao">Leão</option>
+        <option value="virgem">Virgem</option>
+        <option value="libra">Libra</option>
+        <option value="escorpiao">Escorpião</option>
+        <option value="sagitario">Sagitário</option>
+        <option value="capricornio">Capricórnio</option>
+        <option value="aquario">Aquário</option>
+        <option value="peixes">Peixes</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="btn-gerar" disabled>Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta-astrologia"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para seleção de métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+  </div>
+
+  <script>
+    // 1. Mapeamento signo → dezenas
+    const bancoSignos = {
+      aries:     [9,18,27,36,45,54],
+      touro:     [6,15,24,33,42,51],
+      gemeos:    [3,12,21,30,39,48],
+      cancer:    [2,11,20,29,38,47],
+      leao:      [1,10,19,28,37,46],
+      virgem:    [5,14,23,32,41,50],
+      libra:     [7,16,25,34,43,52],
+      escorpiao: [8,17,26,35,44,53],
+      sagitario: [4,13,22,31,40,49],
+      capricornio:[10,19,28,37,46,55],
+      aquario:   [11,20,29,38,47,56],
+      peixes:    [12,21,30,39,48,57]
+    };
+
+    // 2. Ajusta qualquer lista para count dezenas na faixa [min,max]
+    function ajustarDezenas(arr, count, min, max) {
+      // filtra e torna único
+      const filt = arr.filter(n => n >= min && n <= max);
+      const uniq = [...new Set(filt)].sort(() => Math.random() - 0.5);
+      const pool = Array.from({length: max - min + 1}, (_, i) => i + min);
+
+      // preenche aleatoriamente se faltar
+      while (uniq.length < count) {
+        const r = pool[Math.floor(Math.random() * pool.length)];
+        if (!uniq.includes(r)) uniq.push(r);
+      }
+      return uniq.slice(0, count).sort((a, b) => a - b);
+    }
+
+    // 3. UI elements
+    const selSigno = document.getElementById('signo');
+    const btnGerar  = document.getElementById('btn-gerar');
+    const btnNova   = document.getElementById('btn-nova');
+    const resDiv    = document.getElementById('resultado-aposta-astrologia');
+    let ultimaChave = null;
+
+    // 4. Quando carrega a página
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+      // só habilita ao selecionar signo
+      selSigno.addEventListener('change', () => {
+        btnGerar.disabled = selSigno.value === '';
+      });
+    });
+
+    // 5. Gera a aposta
+    btnGerar.addEventListener('click', () => {
+      const mod   = localStorage.getItem('modalidadeSelecionada') || '';
+      const signo = selSigno.value;
+      const chave = `${mod}|${signo}`;
+
+      // idempotência
+      if (ultimaChave === chave) return;
+      ultimaChave = chave;
+
+      // define quantos números e faixa por modalidade
+      let count = 6, min = 1, max = 60;
+      switch (mod) {
+        case 'megasena':    count = 6;  max = 60;  break;
+        case 'quina':       count = 5;  max = 80;  break;
+        case 'lotofacil':   count = 15; max = 25;  break;
+        case 'lotomania':   count = 20; max = 100; break;
+        case 'duplasena':   count = 12; max = 50;  break;
+        case 'federal':     count = 6;  max = 60;  break;
+        case 'timemania':   count = 7;  max = 80;  break;
+        case 'diadesorte':  count = 7;  max = 31;  break;
+        case 'supersete':   count = 7;  min = 0; max = 9; break;
+      }
+
+      // coleta base e ajusta
+      const base      = bancoSignos[signo] || [];
+      const resultado = ajustarDezenas(base, count, min, max);
+
+      resDiv.textContent =
+        `Seus números para ${mod.toUpperCase()} — Signo ${signo.charAt(0).toUpperCase()+signo.slice(1)}: ${resultado.join(', ')}`;
+
+      btnGerar.disabled = true;
+    });
+
+    // 6. Nova aposta
+    btnNova.addEventListener('click', () => {
+      selSigno.selectedIndex = 0;
+      resDiv.textContent      = '';
+      ultimaChave            = null;
+      btnGerar.disabled       = true;
+    });
+  </script>
+</body>
+</html>

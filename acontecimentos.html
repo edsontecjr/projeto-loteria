@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Acontecimentos do Dia - Gerador de Apostas</title>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Acontecimentos do Dia</h1>
+
+    <p>Descreva um acontecimento que lhe chamou a atenção hoje:</p>
+    <textarea id="descricao-acontecimento" placeholder="Ex.: Passei por uma rua e vi um gato cinza..."></textarea>
+
+    <div class="actions">
+      <button id="btn-gerar">Gerar Aposta</button>
+      <button id="btn-nova">Nova Aposta</button>
+    </div>
+
+    <div id="resultado-aposta-acontecimentos"></div>
+
+    <a href="selecao_metodo.html" class="link-voltar">← Voltar para métodos</a>
+    <a href="index.html" class="link-voltar">← Voltar ao início</a>
+  </div>
+
+  <script>
+    // 1. Base de associações (cores sem duplicação)
+    const banco = {
+      cores: {
+        vermelho:[1,11,21], azul:[2,12,22], verde:[3,13,23], amarelo:[4,14,24],
+        roxo:[5,15,25], laranja:[6,16,26], rosa:[7,17,27], branco:[8,18,28],
+        preto:[9,19,29], cinza:[10,20,30], marrom:[31,41,51], bege:[32,42,52]
+      },
+      animais: {
+        cachorro:[5,18,22], gato:[7,15,39], cavalo:[8,26,41], leao:[16,30,50],
+        tigre:[13,33,53], elefante:[17,37,57], coelho:[14,34,54], papagaio:[12,32,52],
+        golfinho:[11,31,51], urso:[19,29,49], macaco:[10,20,40], coruja:[9,21,41],
+        besouro:[6,24,42], baleia:[23,43,63], tartaruga:[25,45,65]
+      },
+      clima: {
+        ensolarado:[6,33,51], nublado:[19,42,71], chuvoso:[11,37,64],
+        tempestade:[9,32,68], neblina:[17,40,60], ventania:[14,34,56],
+        nevado:[16,36,58], arcoiris:[18,44,74]
+      },
+      emocao: {
+        feliz:[29,41,63], triste:[12,36,59], animado:[15,48,72],
+        calmo:[23,45,67], ansioso:[21,43,65], apaixonado:[24,46,68],
+        medroso:[22,34,56], surpreso:[7,31,54]
+      },
+      parentes: {
+        mae:[19,34,62], pai:[21,43,77], irmao:[4,27,59],
+        irma:[10,33,51], avo:[8,26,44], tio:[14,39,65]
+      },
+      objetos: {
+        carro:[18,37,53], casa:[30,42,64], livro:[26,44,61], telefone:[14,40,66],
+        relogio:[13,35,70], chave:[9,33,58], caneta:[16,38,54], cadeira:[27,45,69],
+        mesa:[29,47,71], computador:[17,39,55], bicicleta:[12,24,48],
+        televisao:[11,23,49], panela:[15,25,65], copo:[10,20,60], garrafa:[8,22,56],
+        bolsa:[7,21,57], sapato:[6,19,46], oculos:[5,18,36], moeda:[32,51,24],
+        espelho:[31,41,53], tapete:[33,43,63], cortina:[34,54,74],
+        almofada:[35,55,75], travesseiro:[36,56,76], lampara:[37,57,77],
+        quadro:[38,58,78], vaso:[39,59,79], mapa:[2,12,22],
+        celular:[4,14,24], fogao:[1,11,21], geladeira:[25,35,45],
+        microondas:[26,36,46], sofa:[27,37,47], escada:[28,38,48],
+        guarda:[29,39,49], cabide:[30,40,50]
+      },
+      viagem:[28,46,71], casamento:[15,41,69], nascimento:[2,33,57],
+      festa:[16,34,68], promocao:[7,31,58], acidente:[18,49,76]
+    };
+
+    // 2. Sinônimos
+    const sinonimos = {
+      cachorro:['cachorrinho','dog'], gato:['gatinho','kitty'],
+      feliz:['alegre','contente'], triste:['melancólico','deprimido'],
+      ensolarado:['clarão','sol forte'], chuva:['toró','garoa'],
+      mae:['mamãe'], pai:['papai'], casa:['lar'], carro:['automóvel']
+      // etc.
+    };
+
+    // 3. Extrai números soltos no texto
+    function extrairNumeros(txt) {
+      return (txt.match(/\b\d{1,4}\b/g) || []).map(Number);
+    }
+
+    // 4. Coleta dezenas brutas
+    function coletarBrutos(txt) {
+      let nums = extrairNumeros(txt);
+      const desc = txt.toLowerCase();
+
+      // categorias
+      for (let cat of ['cores','animais','clima','emocao','parentes','objetos']) {
+        for (let chave in banco[cat]) {
+          if (desc.includes(chave) || (sinonimos[chave]||[]).some(s=>desc.includes(s))) {
+            nums.push(...banco[cat][chave]);
+            break;
+          }
+        }
+      }
+
+      // termos únicos
+      ['viagem','casamento','nascimento','festa','promocao','acidente']
+        .forEach(chave => {
+          if (desc.includes(chave)) nums.push(...banco[chave]);
+        });
+
+      return nums;
+    }
+
+    // 5. Ajusta para exatamente count dezenas em [min,max]
+    function ajustar(nums, count, min, max) {
+      const uniq = [...new Set(nums.filter(n=>n>=min&&n<=max))];
+      uniq.sort(()=>Math.random()-0.5);
+      const pool = Array.from({length:max-min+1},(_,i)=>i+min);
+      while (uniq.length < count) {
+        const r = pool[Math.floor(Math.random()*pool.length)];
+        if (!uniq.includes(r)) uniq.push(r);
+      }
+      return uniq.slice(0,count).sort((a,b)=>a-b);
+    }
+
+    // 6. UI e controle
+    const txt     = document.getElementById('descricao-acontecimento');
+    const btnG    = document.getElementById('btn-gerar');
+    const btnN    = document.getElementById('btn-nova');
+    const resDiv  = document.getElementById('resultado-aposta-acontecimentos');
+    let ultimaKey = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      if (mod) {
+        const info = document.createElement('div');
+        info.className = 'modalidade-info';
+        info.textContent = `Gerando para: ${mod.toUpperCase()}`;
+        document.querySelector('.container').prepend(info);
+      }
+      btnG.disabled = true;
+      txt.addEventListener('input', () => {
+        btnG.disabled = txt.value.trim().split(/\s+/).length < 1;
+      });
+    });
+
+    btnG.addEventListener('click', () => {
+      const mod = localStorage.getItem('modalidadeSelecionada') || '';
+      // chave única
+      const key = [mod, txt.value.trim()].join('|');
+      if (ultimaKey === key) return;
+      ultimaKey = key;
+
+      // regras por modalidade
+      let target=10, min=1, max=60;
+      switch(mod) {
+        case 'megasena':   target=6;  break;
+        case 'quina':      target=5;  max=80; break;
+        case 'lotofacil':  target=15; max=25; break;
+        case 'lotomania':  target=20; max=100; break;
+        case 'duplasena':  target=12; max=50; break;
+        case 'federal':    target=6;  break;
+        case 'timemania':  target=7;  max=80; break;
+        case 'diadesorte': target=7;  max=31; break;
+        case 'supersete':  target=7;  min=0; max=9; break;
+      }
+
+      const brutos = coletarBrutos(txt.value);
+      const nums   = ajustar(brutos, target, min, max);
+      resDiv.textContent = `Seus números para ${mod.toUpperCase()}: ${nums.join(', ')}`;
+      btnG.disabled = true;
+    });
+
+    btnN.addEventListener('click', () => {
+      resDiv.innerHTML = '';
+      txt.value = '';
+      ultimaKey = null;
+      btnG.disabled = true;
+    });
+  </script>
+</body>
+</html>
